@@ -5,5 +5,7 @@ project is to make a usable app for non-Android Linux mobile devices (like the P
 desktop support matures.
 
 ## Screenshots
-![Home](screenshots/home-feed.jpg)
-![Post](screenshots/post.jpg)
+<p align="center">
+  <img src="screenshots/home-feed.jpg" width="400">
+  <img src="screenshots/post.jpg" width="400">
+</p>
