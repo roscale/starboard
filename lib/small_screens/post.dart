@@ -1,57 +1,83 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:draw/draw.dart';
 import 'package:flutter/material.dart';
-import 'package:fluttertoast/fluttertoast.dart';
-import 'package:provider/provider.dart';
 import 'package:share/share.dart';
-import 'package:starboard/app_models/post.dart';
+import 'package:starboard/small_screens/image_viewer.dart';
 import 'package:starboard/util.dart';
 
-class Post extends StatelessWidget {
+class Post extends StatefulWidget {
+  @override
+  _PostState createState() => _PostState();
+}
+
+class _PostState extends State<Post> {
+  Submission post;
+  Future commentsRefreshed;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    post = ModalRoute.of(context).settings.arguments;
+    assert(post != null);
+    if (post.comments == null) {
+      commentsRefreshed = post.refreshComments();
+    } else {
+      commentsRefreshed = Future.value(post.comments);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    PostModel post = ModalRoute.of(context).settings.arguments;
-    assert(post != null);
-    post.fetchComments();
-
-    return ChangeNotifierProvider.value(
-      value: post,
-      child: Builder(
-        builder: (context) {
-          PostModel post = Provider.of<PostModel>(context);
-          return Scaffold(
-            appBar: AppBar(),
-            body: ListView(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildHeader(post),
-                      Divider(),
-                      Text(
-                        post.title,
-                        style: TextStyle(fontSize: 20),
-                      ),
-                    ],
+    return Scaffold(
+      appBar: AppBar(),
+      body: RefreshIndicator(
+        backgroundColor: Theme.of(context).cardColor,
+        onRefresh: () async {
+          await post.refresh();
+          post.refreshComments();
+          setState(() {});
+        },
+        child: ListView(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(post),
+                  Divider(),
+                  Text(
+                    post.title,
+                    style: TextStyle(fontSize: 20),
+                  ),
+                ],
+              ),
+            ),
+            if (!post.isSelf)
+              InkWell(
+                child: Hero(
+                  tag: post.preview[0].source.url.toString(),
+                  child: CachedNetworkImage(
+                    imageUrl: post.preview[0].source.url.toString(),
+                    placeholder: (_context, _) =>
+                        Center(child: CircularProgressIndicator()),
                   ),
                 ),
-                if (post.postHint == "image")
-                  CachedNetworkImage(
-                      imageUrl: post.url,
-                      placeholder: (_context, _) =>
-                          Center(child: CircularProgressIndicator())),
-                _buildActionButtons(context, post),
-                _buildComments(context, post),
-              ],
-            ),
-          );
-        },
+                onTap: () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) =>
+                          ImageViewer(post.preview[0].source.url.toString())));
+                },
+              ),
+            _buildActionButtons(context, post),
+            _buildComments(context, post),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildHeader(PostModel post) {
+  Widget _buildHeader(Submission post) {
     return Row(
       children: [
         Icon(Icons.public, color: Colors.blue),
@@ -59,7 +85,7 @@ class Post extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("r/${post.subreddit}"),
+            Text("r/${post.subreddit.displayName}"),
             SizedBox(height: 2),
             Text(
               "Posted by u/${post.author}",
@@ -74,7 +100,7 @@ class Post extends StatelessWidget {
     );
   }
 
-  Widget _buildActionButtons(BuildContext context, PostModel post) {
+  Widget _buildActionButtons(BuildContext context, Submission post) {
     return Padding(
       padding: EdgeInsets.all(8.0),
       child: Row(
@@ -84,13 +110,19 @@ class Post extends StatelessWidget {
               IconButton(
                 icon: Icon(Icons.keyboard_arrow_up),
                 iconSize: 26,
-                color: Colors.grey,
+                color: post.vote == VoteState.upvoted
+                    ? Colors.deepOrange
+                    : Colors.grey,
                 splashColor: Colors.deepOrange,
                 padding: EdgeInsets.all(0),
                 constraints: BoxConstraints(),
                 splashRadius: 15,
-                onPressed: () {
-                  Fluttertoast.showToast(msg: "Unimplemented");
+                onPressed: () async {
+                  if (post.vote == VoteState.upvoted) {
+                    await post.clearVote();
+                  } else {
+                    await post.upvote();
+                  }
                 },
               ),
               Text(
@@ -100,13 +132,19 @@ class Post extends StatelessWidget {
               IconButton(
                 icon: Icon(Icons.keyboard_arrow_down),
                 iconSize: 26,
-                color: Colors.grey,
+                color: post.vote == VoteState.downvoted
+                    ? Colors.blue
+                    : Colors.grey,
                 splashColor: Colors.blue,
                 padding: EdgeInsets.all(0),
                 constraints: BoxConstraints(),
                 splashRadius: 15,
-                onPressed: () {
-                  Fluttertoast.showToast(msg: "Unimplemented");
+                onPressed: () async {
+                  if (post.vote == VoteState.downvoted) {
+                    await post.clearVote();
+                  } else {
+                    await post.downvote();
+                  }
                 },
               ),
             ],
@@ -132,7 +170,7 @@ class Post extends StatelessWidget {
           SizedBox(width: 40),
           InkWell(
             onTap: () {
-              Share.share("https://reddit.com${post.permalink}");
+              Share.share(post.url.toString());
             },
             child: Padding(
               padding: const EdgeInsets.all(8.0),
@@ -157,23 +195,33 @@ class Post extends StatelessWidget {
     );
   }
 
-  Widget _buildComments(BuildContext context, PostModel post) {
-    if (post.hasError()) {
-      return Text("Error loading comments: ${post.error}");
-    }
-    if (post.isLoading()) {
-      return CircularProgressIndicator();
-    }
-    var commentWidgets = <Widget>[];
-    post.comments.forEach((comment) {
-      if (comment.body == null) {
-        return;
-      }
-      commentWidgets.add(Card(child: Text(comment.body)));
-    });
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: commentWidgets,
+  Widget _buildComments(BuildContext context, Submission post) {
+    return FutureBuilder(
+      future: commentsRefreshed,
+      builder: (_, snapshot) {
+        if (!snapshot.hasData) {
+          print("NO");
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 50.0),
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        var commentWidgets = post.comments.comments.map((o) {
+          var comment = o as Comment;
+          return Card(child: Text(comment.body));
+        }).toList();
+
+        return Padding(
+          padding: EdgeInsets.all(5.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: commentWidgets,
+          ),
+        );
+      },
     );
   }
 }

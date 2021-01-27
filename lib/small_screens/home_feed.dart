@@ -1,10 +1,12 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:draw/draw.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:provider/provider.dart';
 import 'package:share/share.dart';
+import 'package:starboard/app_models/app_model.dart';
 import 'package:starboard/app_models/home_feed.dart';
-import 'package:starboard/app_models/post.dart';
+import 'package:starboard/small_screens/image_viewer.dart';
 import 'package:starboard/util.dart';
 
 class HomeFeed extends StatefulWidget {
@@ -21,7 +23,8 @@ class _HomeFeedState extends State<HomeFeed> {
     _scrollController.addListener(() {
       if (_scrollController.offset >=
           _scrollController.position.maxScrollExtent - 1000) {
-        Provider.of<HomeFeedModel>(context, listen: false).fetchMorePosts();
+        var appModel = context.read<AppModel>();
+        context.read<HomeFeedModel>().fetchMorePosts(appModel.reddit);
       }
     });
   }
@@ -31,6 +34,16 @@ class _HomeFeedState extends State<HomeFeed> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Home'),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.logout),
+            onPressed: () async {
+              await context.read<AppModel>().deleteSavedCredentials();
+              Navigator.of(context).pushReplacementNamed("/");
+            },
+            tooltip: "Logout",
+          )
+        ],
       ),
       body: Builder(
         builder: (context) {
@@ -49,7 +62,7 @@ class _HomeFeedState extends State<HomeFeed> {
     );
   }
 
-  Widget _buildListView(List<PostModel> posts) {
+  Widget _buildListView(List<Submission> posts) {
     return ListView.separated(
       separatorBuilder: (context, i) => Divider(height: 0),
       controller: _scrollController,
@@ -67,7 +80,7 @@ class _HomeFeedState extends State<HomeFeed> {
     );
   }
 
-  Widget _buildPost(PostModel post) {
+  Widget _buildPost(Submission post) {
     return InkWell(
       onTap: () {
         Navigator.of(context).pushNamed('/comments', arguments: post);
@@ -88,7 +101,7 @@ class _HomeFeedState extends State<HomeFeed> {
     );
   }
 
-  Widget _buildTitleAndThumbnail(PostModel post) {
+  Widget _buildTitleAndThumbnail(Submission post) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -97,7 +110,7 @@ class _HomeFeedState extends State<HomeFeed> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "r/${post.subreddit}",
+              "r/${post.subreddit.displayName}",
               style: TextStyle(
                 fontSize: 12,
                 color: Colors.grey,
@@ -105,7 +118,8 @@ class _HomeFeedState extends State<HomeFeed> {
             ),
             SizedBox(height: 5),
             Container(
-              width: post.postHint == "image"
+              // width: post.postHint == "image"
+              width: !post.isSelf
                   ? MediaQuery.of(context).size.width - 120
                   : MediaQuery.of(context).size.width - 30,
               child: Text(
@@ -117,17 +131,27 @@ class _HomeFeedState extends State<HomeFeed> {
             ),
           ],
         ),
-        if (post.postHint == "image")
+        if (!post.isSelf)
           ClipRRect(
             borderRadius: BorderRadius.all(Radius.circular(5)),
             child: Builder(builder: (context) {
-              return CachedNetworkImage(
-                fadeInDuration: Duration(milliseconds: 200),
-                imageUrl: post.thumbnail,
-                width: 85,
-                height: 60,
-                fit: BoxFit.fitWidth,
-                alignment: Alignment.topCenter,
+              return InkWell(
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          ImageViewer(post.preview[0].source.url.toString()),
+                    ),
+                  );
+                },
+                child: CachedNetworkImage(
+                  fadeInDuration: Duration(milliseconds: 200),
+                  imageUrl: post.thumbnail.toString(),
+                  width: 85,
+                  height: 60,
+                  fit: BoxFit.cover,
+                  alignment: Alignment.topCenter,
+                ),
               );
             }),
           )
@@ -137,7 +161,7 @@ class _HomeFeedState extends State<HomeFeed> {
     );
   }
 
-  Widget _buildActionButtons(PostModel post) {
+  Widget _buildActionButtons(Submission post) {
     return Row(
       children: [
         Row(
@@ -198,7 +222,9 @@ class _HomeFeedState extends State<HomeFeed> {
         SizedBox(width: 40),
         InkWell(
           onTap: () {
-            Share.share("https://reddit.com${post.permalink}");
+            Share.share(
+              shortLink(context.read<AppModel>().reddit, post).toString(),
+            );
           },
           child: Padding(
             padding: const EdgeInsets.all(8.0),

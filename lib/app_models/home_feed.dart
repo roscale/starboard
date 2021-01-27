@@ -1,33 +1,22 @@
+import 'package:draw/draw.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:starboard/app_models/post.dart';
 import 'package:starboard/view_status.dart';
-import 'package:starboard/json_models/post.dart';
-import 'package:starboard/reddit_api.dart';
 
 class HomeFeedModel with ChangeNotifier, ViewStatus {
-  var posts = <PostModel>[];
+  var posts = <Submission>[];
   String after;
 
-  void fetchMorePosts() async {
+  void fetchMorePosts(Reddit reddit) async {
     if (isLoading()) {
       return;
     }
     notifyLoading();
 
     try {
-      var jsonModel = await fetchHomeFeed(after);
-      posts.addAll(jsonModel.data.children.map((e) => PostModel(
-            e.data.title,
-            e.data.author,
-            e.data.subreddit,
-            e.data.ups,
-            e.data.post_hint,
-            e.data.url,
-            e.data.num_comments,
-            e.data.permalink,
-            e.data.thumbnail,
-          )));
-      after = jsonModel.data.after;
+      posts.addAll(
+          (await reddit.front.best(after: after, limit: 20).toList()).map((
+              e) => e as Submission));
+      after = posts.last.fullname;
       notifySuccess();
     } catch (e) {
       notifyError(e);
