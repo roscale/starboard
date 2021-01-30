@@ -57,16 +57,20 @@ class _PostState extends State<Post> {
               InkWell(
                 child: Hero(
                   tag: post.preview[0].source.url.toString(),
-                  child: CachedNetworkImage(
-                    imageUrl: post.preview[0].source.url.toString(),
-                    placeholder: (_context, _) =>
-                        Center(child: CircularProgressIndicator()),
+                  child: AspectRatio(
+                    aspectRatio: post.preview[0].source.width /
+                        post.preview[0].source.height,
+                    child: CachedNetworkImage(
+                      imageUrl: post.preview[0].source.url.toString(),
+                      placeholder: (_context, _) =>
+                          Center(child: CircularProgressIndicator()),
+                    ),
                   ),
                 ),
                 onTap: () {
                   Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) =>
-                          ImageViewer(post.preview[0].source.url.toString())));
+                      builder: (_) => ImageViewer(
+                          post, post.preview[0].source.url.toString())));
                 },
               ),
             _buildActionButtons(context, post),
@@ -104,6 +108,7 @@ class _PostState extends State<Post> {
     return Padding(
       padding: EdgeInsets.all(8.0),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           Row(
             children: [
@@ -149,7 +154,6 @@ class _PostState extends State<Post> {
               ),
             ],
           ),
-          SizedBox(width: 40),
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Row(
@@ -167,7 +171,6 @@ class _PostState extends State<Post> {
               ],
             ),
           ),
-          SizedBox(width: 40),
           InkWell(
             onTap: () {
               Share.share(post.url.toString());
@@ -200,7 +203,6 @@ class _PostState extends State<Post> {
       future: commentsRefreshed,
       builder: (_, snapshot) {
         if (!snapshot.hasData) {
-          print("NO");
           return Center(
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 50.0),
@@ -209,19 +211,163 @@ class _PostState extends State<Post> {
           );
         }
 
-        var commentWidgets = post.comments.comments.map((o) {
-          var comment = o as Comment;
-          return Card(child: Text(comment.body));
-        }).toList();
+        var commentWidgets = _buildCommentForest(post.comments);
 
+        if (commentWidgets.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 50),
+              child: Text(
+                "No comments\n¯\\_(ツ)_/¯",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+          );
+        } else {
+          return Padding(
+            padding: EdgeInsets.all(5.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: commentWidgets,
+            ),
+          );
+        }
+      },
+    );
+  }
+
+  List<Widget> _buildCommentForest(CommentForest commentForest,
+      {topLevel = true}) {
+    return commentForest.comments.map((c) {
+      if (c is MoreComments) {
+        return TextButton(
+            onPressed: () {}, child: Text("${c.count} more replies"));
+      } else if (c is Comment) {
         return Padding(
-          padding: EdgeInsets.all(5.0),
+          padding: const EdgeInsets.only(left: 10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: commentWidgets,
+            children: [
+              Row(children: [
+                Icon(
+                  Icons.account_circle,
+                  color: Colors.orange,
+                ),
+                Padding(padding: EdgeInsets.only(left: 5)),
+                Text(
+                  c.author,
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+                Text(
+                  " • ${formatDuration(DateTime.now().difference(c.createdUtc))}",
+                  style: TextStyle(color: Colors.grey),
+                )
+              ]),
+              Padding(padding: EdgeInsets.only(top: 5)),
+
+              Text(c.body),
+              Padding(padding: EdgeInsets.only(top: 5)),
+              _buildCommentActionButtons(c),
+
+              if (c.replies != null && c.replies.length > 0)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(padding: EdgeInsets.only(top: 10)),
+                    Container(
+                      decoration: BoxDecoration(
+                        border: Border(
+                          left: BorderSide(
+                            color: Colors.grey.shade800,
+                            width: 1.5,
+                          ),
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 5),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: _buildCommentForest(c.replies),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              if (c != commentForest.comments.last)
+                Padding(padding: EdgeInsets.only(top: 10)),
+            ],
           ),
         );
-      },
+      }
+    }).toList();
+  }
+
+  Widget _buildCommentActionButtons(Comment c) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        IconButton(
+          icon: Icon(Icons.reply),
+          color: Colors.grey,
+          padding: EdgeInsets.all(4),
+          constraints: BoxConstraints(),
+          iconSize: 20,
+          splashRadius: 15,
+          onPressed: () {},
+        ),
+        Padding(padding: EdgeInsets.only(left: 20)),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            Row(
+              children: [
+                IconButton(
+                  icon: Icon(Icons.keyboard_arrow_up),
+                  iconSize: 26,
+                  color: c.vote == VoteState.upvoted
+                      ? Colors.deepOrange
+                      : Colors.grey,
+                  splashColor: Colors.deepOrange,
+                  padding: EdgeInsets.all(0),
+                  constraints: BoxConstraints(),
+                  splashRadius: 15,
+                  onPressed: () async {
+                    if (c.vote == VoteState.upvoted) {
+                      await c.clearVote();
+                    } else {
+                      await c.upvote();
+                    }
+                  },
+                ),
+                Text(
+                  formatBigNumber(c.score),
+                  style: TextStyle(fontSize: 13, color: Colors.grey),
+                ),
+                IconButton(
+                  icon: Icon(Icons.keyboard_arrow_down),
+                  iconSize: 26,
+                  color: c.vote == VoteState.downvoted
+                      ? Colors.blue
+                      : Colors.grey,
+                  splashColor: Colors.blue,
+                  padding: EdgeInsets.all(0),
+                  constraints: BoxConstraints(),
+                  splashRadius: 15,
+                  onPressed: () async {
+                    if (c.vote == VoteState.downvoted) {
+                      await c.clearVote();
+                    } else {
+                      await c.downvote();
+                    }
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+        Padding(padding: EdgeInsets.only(right: 8))
+      ],
     );
   }
 }

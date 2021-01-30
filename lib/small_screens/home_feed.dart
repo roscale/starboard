@@ -20,6 +20,7 @@ class _HomeFeedState extends State<HomeFeed> {
   @override
   void initState() {
     super.initState();
+    // Download more posts when approaching the end of the list.
     _scrollController.addListener(() {
       if (_scrollController.offset >=
           _scrollController.position.maxScrollExtent - 1000) {
@@ -33,8 +34,10 @@ class _HomeFeedState extends State<HomeFeed> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Home'),
+        title: Text('Starboard'),
+        centerTitle: true,
         actions: [
+          // Logout button.
           IconButton(
             icon: Icon(Icons.logout),
             onPressed: () async {
@@ -66,14 +69,14 @@ class _HomeFeedState extends State<HomeFeed> {
     return ListView.separated(
       separatorBuilder: (context, i) => Divider(height: 0),
       controller: _scrollController,
-      itemCount: posts.length + 2,
+      itemCount: posts.length + 1,
       itemBuilder: (BuildContext context, int index) {
         if (index < posts.length) {
           return _buildPost(posts[index]);
         } else {
-          return ListTile(
-            title: Text("-----------------------------"),
-            onTap: () {},
+          return Padding(
+            padding: EdgeInsets.symmetric(vertical: 50),
+            child: Center(child: CircularProgressIndicator()),
           );
         }
       },
@@ -88,6 +91,7 @@ class _HomeFeedState extends State<HomeFeed> {
       child: Padding(
         padding: const EdgeInsets.only(left: 12.0, right: 12.0, top: 8.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildTitleAndThumbnail(post),
             SizedBox(height: 10),
@@ -110,7 +114,7 @@ class _HomeFeedState extends State<HomeFeed> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "r/${post.subreddit.displayName}",
+              "r/${post.subreddit.displayName} • ${formatDuration(DateTime.now().difference(post.createdUtc))}",
               style: TextStyle(
                 fontSize: 12,
                 color: Colors.grey,
@@ -140,7 +144,7 @@ class _HomeFeedState extends State<HomeFeed> {
                   Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) =>
-                          ImageViewer(post.preview[0].source.url.toString()),
+                          ImageViewer(post, post.preview[0].source.url.toString()),
                     ),
                   );
                 },
@@ -162,89 +166,91 @@ class _HomeFeedState extends State<HomeFeed> {
   }
 
   Widget _buildActionButtons(Submission post) {
-    return Row(
-      children: [
-        Row(
-          children: [
-            IconButton(
-              icon: Icon(Icons.keyboard_arrow_up),
-              iconSize: 26,
-              color: Colors.grey,
-              splashColor: Colors.deepOrange,
-              padding: EdgeInsets.all(0),
-              constraints: BoxConstraints(),
-              splashRadius: 15,
-              onPressed: () {
-                Fluttertoast.showToast(msg: "Unimplemented");
-              },
-            ),
-            Text(
-              formatBigNumber(post.score),
-              style: TextStyle(fontSize: 13, color: Colors.grey),
-            ),
-            IconButton(
-              icon: Icon(Icons.keyboard_arrow_down),
-              iconSize: 26,
-              color: Colors.grey,
-              splashColor: Colors.blue,
-              padding: EdgeInsets.all(0),
-              constraints: BoxConstraints(),
-              splashRadius: 15,
-              onPressed: () {
-                Fluttertoast.showToast(msg: "Unimplemented");
-              },
-            ),
-          ],
-        ),
-        SizedBox(width: 40),
-        InkWell(
-          onTap: () {
-            Navigator.of(context).pushNamed('/comments', arguments: post);
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.comment,
-                  size: 16,
-                  color: Colors.grey,
-                ),
-                SizedBox(width: 5),
-                Text(
-                  "${formatBigNumber(post.numComments)}",
-                  style: TextStyle(fontSize: 13, color: Colors.grey),
-                ),
-              ],
+    return SizedBox(
+      width: 290,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              IconButton(
+                icon: Icon(Icons.keyboard_arrow_up),
+                iconSize: 26,
+                color: Colors.grey,
+                splashColor: Colors.deepOrange,
+                padding: EdgeInsets.all(0),
+                constraints: BoxConstraints(),
+                splashRadius: 15,
+                onPressed: () {
+                  Fluttertoast.showToast(msg: "Unimplemented");
+                },
+              ),
+              Text(
+                formatBigNumber(post.score),
+                style: TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+              IconButton(
+                icon: Icon(Icons.keyboard_arrow_down),
+                iconSize: 26,
+                color: Colors.grey,
+                splashColor: Colors.blue,
+                padding: EdgeInsets.all(0),
+                constraints: BoxConstraints(),
+                splashRadius: 15,
+                onPressed: () {
+                  Fluttertoast.showToast(msg: "Unimplemented");
+                },
+              ),
+            ],
+          ),
+          InkWell(
+            onTap: () {
+              Navigator.of(context).pushNamed('/comments', arguments: post);
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.comment,
+                    size: 16,
+                    color: Colors.grey,
+                  ),
+                  SizedBox(width: 5),
+                  Text(
+                    "${formatBigNumber(post.numComments)}",
+                    style: TextStyle(fontSize: 13, color: Colors.grey),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-        SizedBox(width: 40),
-        InkWell(
-          onTap: () {
-            Share.share(
-              shortLink(context.read<AppModel>().reddit, post).toString(),
-            );
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.share,
-                  size: 16,
-                  color: Colors.grey,
-                ),
-                SizedBox(width: 5),
-                Text(
-                  "Share",
-                  style: TextStyle(fontSize: 13, color: Colors.grey),
-                ),
-              ],
+          InkWell(
+            onTap: () {
+              Share.share(
+                shortLink(context.read<AppModel>().reddit, post).toString(),
+              );
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.share,
+                    size: 16,
+                    color: Colors.grey,
+                  ),
+                  SizedBox(width: 5),
+                  Text(
+                    "Share",
+                    style: TextStyle(fontSize: 13, color: Colors.grey),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

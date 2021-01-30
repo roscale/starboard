@@ -16,3 +16,19 @@ String formatBigNumber(int n) {
 Uri shortLink(Reddit reddit, Submission post) {
   return Uri.parse("${reddit.config.shortUrl}/${post.id}");
 }
+
+String formatDuration(Duration duration) {
+  if (duration.inSeconds < 60) {
+    return "${duration.inSeconds}s";
+  }
+  if (duration.inMinutes < 60) {
+    return "${duration.inMinutes}m";
+  }
+  if (duration.inHours < 24) {
+    return "${duration.inHours}h";
+  }
+  if (duration.inDays < 7) {
+    return "${duration.inDays}d";
+  }
+  return "${duration.inDays ~/ 7}w";
+}
