@@ -5,6 +5,13 @@ import 'package:share/share.dart';
 import 'package:starboard/small_screens/image_viewer.dart';
 import 'package:starboard/util.dart';
 
+class LinearComment {
+  int indentation;
+  dynamic comment;
+
+  LinearComment(this.indentation, this.comment);
+}
+
 class Post extends StatefulWidget {
   @override
   _PostState createState() => _PostState();
@@ -13,6 +20,8 @@ class Post extends StatefulWidget {
 class _PostState extends State<Post> {
   Submission post;
   Future commentsRefreshed;
+
+  var _scrollController = ScrollController();
 
   @override
   void didChangeDependencies() {
@@ -37,47 +46,106 @@ class _PostState extends State<Post> {
           post.refreshComments();
           setState(() {});
         },
-        child: ListView(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        child: FutureBuilder(
+          future: commentsRefreshed,
+          builder: (_, snapshot) {
+            // Loading comments
+            if (!snapshot.hasData) {
+              return ListView(
                 children: [
-                  _buildHeader(post),
-                  Divider(),
-                  Text(
-                    post.title,
-                    style: TextStyle(fontSize: 20),
-                  ),
-                ],
-              ),
-            ),
-            if (!post.isSelf)
-              InkWell(
-                child: Hero(
-                  tag: post.preview[0].source.url.toString(),
-                  child: AspectRatio(
-                    aspectRatio: post.preview[0].source.width /
-                        post.preview[0].source.height,
-                    child: CachedNetworkImage(
-                      imageUrl: post.preview[0].source.url.toString(),
-                      placeholder: (_context, _) =>
-                          Center(child: CircularProgressIndicator()),
+                  _buildTopSection(post),
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 50.0),
+                      child: CircularProgressIndicator(),
                     ),
                   ),
-                ),
-                onTap: () {
-                  Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => ImageViewer(
-                          post, post.preview[0].source.url.toString())));
+                ],
+              );
+            }
+            // No comments
+            if (post.comments.length == 0) {
+              return ListView(
+                children: [
+                  _buildTopSection(post),
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 50.0),
+                      child: Text(
+                        "No comments\n¯\\_(ツ)_/¯",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            var linearComments = <LinearComment>[];
+            _linearizeComments(post.comments, linearComments);
+
+            return Scrollbar(
+              controller: _scrollController,
+              child: ListView.builder(
+                controller: _scrollController,
+                itemCount: 1 + linearComments.length,
+                itemBuilder: (context, index) {
+                  if (index == 0) {
+                    return _buildTopSection(post);
+                  }
+                  var comment =
+                      _buildComment(linearComments[index - 1].comment);
+                  return _indentComment(
+                      comment, linearComments[index - 1].indentation);
                 },
               ),
-            _buildActionButtons(context, post),
-            _buildComments(context, post),
-          ],
+            );
+          },
         ),
       ),
+    );
+  }
+
+  Widget _buildTopSection(Submission post) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeader(post),
+              Divider(),
+              Text(
+                post.title,
+                style: TextStyle(fontSize: 20),
+              ),
+            ],
+          ),
+        ),
+        if (!post.isSelf)
+          InkWell(
+            child: Hero(
+              tag: post.preview[0].source.url.toString(),
+              child: AspectRatio(
+                aspectRatio: post.preview[0].source.width /
+                    post.preview[0].source.height,
+                child: CachedNetworkImage(
+                  imageUrl: post.preview[0].source.url.toString(),
+                  placeholder: (_context, _) =>
+                      Center(child: CircularProgressIndicator()),
+                ),
+              ),
+            ),
+            onTap: () {
+              Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => ImageViewer(
+                      post, post.preview[0].source.url.toString())));
+            },
+          ),
+        _buildActionButtons(context, post),
+      ],
     );
   }
 
@@ -198,109 +266,62 @@ class _PostState extends State<Post> {
     );
   }
 
-  Widget _buildComments(BuildContext context, Submission post) {
-    return FutureBuilder(
-      future: commentsRefreshed,
-      builder: (_, snapshot) {
-        if (!snapshot.hasData) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 50.0),
-              child: CircularProgressIndicator(),
-            ),
-          );
-        }
-
-        var commentWidgets = _buildCommentForest(post.comments);
-
-        if (commentWidgets.isEmpty) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 50),
-              child: Text(
-                "No comments\n¯\\_(ツ)_/¯",
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey),
-              ),
-            ),
-          );
-        } else {
-          return Padding(
-            padding: EdgeInsets.all(5.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: commentWidgets,
-            ),
-          );
-        }
-      },
-    );
+  void _linearizeComments(CommentForest commentForest, List<LinearComment> dest,
+      {level = 0}) {
+    for (var c in commentForest.comments) {
+      dest.add(LinearComment(level, c));
+      if (c is Comment && c.replies != null) {
+        _linearizeComments(c.replies, dest, level: level + 1);
+      }
+    }
   }
 
-  List<Widget> _buildCommentForest(CommentForest commentForest,
-      {topLevel = true}) {
-    return commentForest.comments.map((c) {
-      if (c is MoreComments) {
-        return TextButton(
-            onPressed: () {}, child: Text("${c.count} more replies"));
-      } else if (c is Comment) {
-        return Padding(
-          padding: const EdgeInsets.only(left: 10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(children: [
-                Icon(
-                  Icons.account_circle,
-                  color: Colors.orange,
+  Widget _buildComment(dynamic c) {
+    if (c is MoreComments) {
+      return Row(
+        children: [
+          Padding(padding: EdgeInsets.only(left: 5)),
+          TextButton(child: Text("${c.count} more replies"), onPressed: () {}),
+        ],
+      );
+    } else if (c is Comment) {
+      return Padding(
+        padding: const EdgeInsets.only(left: 15, top: 15),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(
+                Icons.account_circle,
+                color: Colors.orange,
+              ),
+              Padding(padding: EdgeInsets.only(left: 5)),
+              Text(
+                c.author,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  color: c.author == post.author ? Colors.blue : Colors.white,
                 ),
-                Padding(padding: EdgeInsets.only(left: 5)),
-                Text(
-                  c.author,
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-                Text(
-                  " • ${formatDuration(DateTime.now().difference(c.createdUtc))}",
-                  style: TextStyle(color: Colors.grey),
-                )
-              ]),
-              Padding(padding: EdgeInsets.only(top: 5)),
-
-              Text(c.body),
-              Padding(padding: EdgeInsets.only(top: 5)),
-              _buildCommentActionButtons(c),
-
-              if (c.replies != null && c.replies.length > 0)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(padding: EdgeInsets.only(top: 10)),
-                    Container(
-                      decoration: BoxDecoration(
-                        border: Border(
-                          left: BorderSide(
-                            color: Colors.grey.shade800,
-                            width: 1.5,
-                          ),
-                        ),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 5),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: _buildCommentForest(c.replies),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              if (c != commentForest.comments.last)
-                Padding(padding: EdgeInsets.only(top: 10)),
-            ],
-          ),
-        );
-      }
-    }).toList();
+              ),
+              Text(
+                " • ${formatDuration(DateTime.now().difference(c.createdUtc))}",
+                style: TextStyle(color: Colors.grey),
+              )
+            ]),
+            Padding(padding: EdgeInsets.only(top: 5)),
+            Padding(
+              // Avoid scrollbar covering the text
+              padding: const EdgeInsets.only(right: 10),
+              child: Text(c.body),
+            ),
+            Padding(padding: EdgeInsets.only(top: 5)),
+            _buildCommentActionButtons(c),
+          ],
+        ),
+      );
+    }
+    assert(false, "Should never get here");
   }
 
   Widget _buildCommentActionButtons(Comment c) {
@@ -347,9 +368,8 @@ class _PostState extends State<Post> {
                 IconButton(
                   icon: Icon(Icons.keyboard_arrow_down),
                   iconSize: 26,
-                  color: c.vote == VoteState.downvoted
-                      ? Colors.blue
-                      : Colors.grey,
+                  color:
+                      c.vote == VoteState.downvoted ? Colors.blue : Colors.grey,
                   splashColor: Colors.blue,
                   padding: EdgeInsets.all(0),
                   constraints: BoxConstraints(),
@@ -369,5 +389,25 @@ class _PostState extends State<Post> {
         Padding(padding: EdgeInsets.only(right: 8))
       ],
     );
+  }
+
+  Widget _indentComment(Widget comment, int indentation) {
+    for (var i = 0; i < indentation; i++) {
+      comment = Padding(
+        padding: EdgeInsets.only(left: 15),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(
+              left: BorderSide(
+                color: Colors.grey.shade800,
+                width: 1.5,
+              ),
+            ),
+          ),
+          child: comment,
+        ),
+      );
+    }
+    return comment;
   }
 }
