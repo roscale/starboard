@@ -10,6 +10,7 @@ class ImageViewer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    print("URLLLLLL: $url");
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(

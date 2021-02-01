@@ -1,4 +1,5 @@
 import 'package:draw/draw.dart';
+import 'package:flutter/material.dart';
 
 String formatBigNumber(int n) {
   var abs = n.abs();
@@ -31,4 +32,20 @@ String formatDuration(Duration duration) {
     return "${duration.inDays}d";
   }
   return "${duration.inDays ~/ 7}w";
+}
+
+Widget inkwellOverWidget({@required Widget widget, @required Function onTap}) {
+  return Stack(
+    children: [
+      widget,
+      Positioned.fill(
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+          ),
+        ),
+      )
+    ],
+  );
 }

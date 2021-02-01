@@ -8,6 +8,7 @@ import 'package:starboard/app_models/app_model.dart';
 import 'package:starboard/app_models/home_feed.dart';
 import 'package:starboard/small_screens/image_viewer.dart';
 import 'package:starboard/util.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class HomeFeed extends StatefulWidget {
   @override
@@ -122,7 +123,7 @@ class _HomeFeedState extends State<HomeFeed> {
             ),
             SizedBox(height: 5),
             Container(
-              // width: post.postHint == "image"
+              // Leave some space for the thumbnail
               width: !post.isSelf
                   ? MediaQuery.of(context).size.width - 120
                   : MediaQuery.of(context).size.width - 30,
@@ -135,32 +136,118 @@ class _HomeFeedState extends State<HomeFeed> {
             ),
           ],
         ),
-        if (!post.isSelf)
-          ClipRRect(
-            borderRadius: BorderRadius.all(Radius.circular(5)),
-            child: Builder(builder: (context) {
-              return InkWell(
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          ImageViewer(post, post.preview[0].source.url.toString()),
-                    ),
+        Builder(
+          builder: (_) {
+            if (post.isSelf) {
+              return Container();
+            }
+
+            var isLink = !post.isRedditMediaDomain;
+            var isImage = (post.isRedditMediaDomain || post.domain == "i.imgur.com") && !post.isVideo;
+            var isVideo = post.isVideo;
+
+            String thumbnail;
+            // Some thumbnails don't contain urls for some reason
+            // ex: default, image, nsfw
+            if (post.thumbnail.scheme.isNotEmpty) {
+              thumbnail = post.thumbnail.toString();
+            } else if (post.preview.isNotEmpty) {
+              thumbnail = post.preview.first.source.url.toString();
+            }
+
+            return ClipRRect(
+              borderRadius: BorderRadius.all(Radius.circular(5)),
+              child: Builder(builder: (_) {
+                var thumbnailWidget;
+                if (thumbnail == null) {
+                  thumbnailWidget = Container(
+                    width: 85,
+                    height: 60,
+                    color: Colors.grey.shade800,
+                    child: Icon(Icons.link),
                   );
-                },
-                child: CachedNetworkImage(
-                  fadeInDuration: Duration(milliseconds: 200),
-                  imageUrl: post.thumbnail.toString(),
-                  width: 85,
-                  height: 60,
-                  fit: BoxFit.cover,
-                  alignment: Alignment.topCenter,
-                ),
-              );
-            }),
-          )
-        else
-          Container(),
+                } else {
+                  thumbnailWidget = CachedNetworkImage(
+                    fadeInDuration: Duration(milliseconds: 200),
+                    imageUrl: thumbnail,
+                    width: 85,
+                    height: 60,
+                    fit: BoxFit.cover,
+                    alignment: Alignment.topCenter,
+                  );
+                }
+
+                if (isImage) {
+                  return inkwellOverWidget(
+                      widget: thumbnailWidget,
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ImageViewer(
+                                post, post.preview.first.source.url.toString()),
+                          ),
+                        );
+                      });
+                } else if (isLink) {
+                  thumbnailWidget = Stack(
+                    alignment: AlignmentDirectional.bottomCenter,
+                    children: [
+                      thumbnailWidget,
+                      Container(
+                        width: 85,
+                        color: Colors.black54,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2.0),
+                          child: Text(
+                            post.domain,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 13),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+
+                  return inkwellOverWidget(
+                    widget: thumbnailWidget,
+                    onTap: () {
+                      launch(post.url.toString());
+                    },
+                  );
+                } else if (isVideo) {
+                  thumbnailWidget = Stack(
+                    alignment: AlignmentDirectional.bottomStart,
+                    children: [
+                      thumbnailWidget,
+                      Padding(
+                        padding: const EdgeInsets.all(4.0),
+                        child: Container(
+                          decoration: BoxDecoration(
+                              color: Colors.black54,
+                              borderRadius:
+                                  BorderRadius.all(Radius.circular(20))),
+                          child: Icon(Icons.play_arrow, size: 20),
+                        ),
+                      ),
+                    ],
+                  );
+
+                  return inkwellOverWidget(
+                    widget: thumbnailWidget,
+                    onTap: () {
+                      launch(post.url.toString());
+                    },
+                  );
+                } else {
+                  assert(false);
+                  return Container();
+                }
+              }),
+            );
+          },
+        )
       ],
     );
   }

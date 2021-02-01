@@ -1,9 +1,12 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:draw/draw.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:share/share.dart';
+import 'package:starboard/app_models/app_model.dart';
 import 'package:starboard/small_screens/image_viewer.dart';
 import 'package:starboard/util.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class LinearComment {
   int indentation;
@@ -109,9 +112,10 @@ class _PostState extends State<Post> {
 
   Widget _buildTopSection(Submission post) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.all(12.0),
+          padding: const EdgeInsets.all(15.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -124,32 +128,96 @@ class _PostState extends State<Post> {
             ],
           ),
         ),
-        if (!post.isSelf)
-          InkWell(
-            child: Hero(
-              tag: post.preview[0].source.url.toString(),
-              child: AspectRatio(
-                aspectRatio: post.preview[0].source.width /
-                    post.preview[0].source.height,
-                child: CachedNetworkImage(
-                  imageUrl: post.preview[0].source.url.toString(),
-                  placeholder: (_context, _) =>
-                      Center(child: CircularProgressIndicator()),
-                ),
-              ),
-            ),
-            onTap: () {
-              Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => ImageViewer(
-                      post, post.preview[0].source.url.toString())));
-            },
-          ),
+        Builder(
+          builder: (_) {
+            if (post.isSelf) {
+              if (post.selftext.isEmpty) {
+                return Container();
+              }
+              return Padding(
+                padding: EdgeInsets.all(15.0),
+                child: Text(post.selftext),
+              );
+            }
+
+            var isLink = !post.isRedditMediaDomain && post.domain != "i.imgur.com";
+            var isImage = (post.isRedditMediaDomain || post.domain == "i.imgur.com") && !post.isVideo;
+            var isVideo = post.isVideo;
+
+            var widget = Stack(
+              alignment: AlignmentDirectional.bottomCenter,
+              children: [
+                if (post.preview.isNotEmpty)
+                  Hero(
+                    tag: post.preview.first.source.url.toString(),
+                    child: AspectRatio(
+                      aspectRatio: post.preview.first.source.width /
+                          post.preview.first.source.height,
+                      child: CachedNetworkImage(
+                        imageUrl: post.preview.first.source.url.toString(),
+                        placeholder: (_context, _) =>
+                            Center(child: CircularProgressIndicator()),
+                      ),
+                    ),
+                  ),
+                if (isLink)
+                  Container(
+                    width: double.infinity,
+                    color: Colors.black54,
+                    child: Padding(
+                      padding: const EdgeInsets.all(18.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            post.domain,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.bold),
+                          ),
+                          Icon(Icons.open_in_new, size: 20)
+                        ],
+                      ),
+                    ),
+                  )
+              ],
+            );
+
+            return inkwellOverWidget(
+              widget: widget,
+              onTap: () {
+                if (isImage) {
+                  Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => ImageViewer(
+                          post, post.preview.first.source.url.toString())));
+                } else if (isLink) {
+                  launch(post.url.toString());
+                }
+              },
+            );
+          },
+        ),
         _buildActionButtons(context, post),
       ],
     );
   }
 
   Widget _buildHeader(Submission post) {
+    print("post.isSelf: ${post.isSelf}");
+    print("post.isVideo: ${post.isVideo}");
+    print("post.variants: ${post.variants}");
+    print("post.url: ${post.url}");
+    print("post.thumbnail: ${post.thumbnail.toString()}");
+    for (int i = 0; i < post.preview.length; i++) {
+      print(
+          "preview[$i] = id: ${post.preview[i].id}, url: ${post.preview[i].source.url}");
+    }
+    print("post.variants: ${post.variants}");
+    print("post.domain: ${post.domain}");
+    print("post.isRedditMediaDomain: ${post.isRedditMediaDomain}");
+    print("");
+
     return Row(
       children: [
         Icon(Icons.public, color: Colors.blue),
@@ -241,7 +309,8 @@ class _PostState extends State<Post> {
           ),
           InkWell(
             onTap: () {
-              Share.share(post.url.toString());
+              Share.share(
+                  shortLink(context.read<AppModel>().reddit, post).toString());
             },
             child: Padding(
               padding: const EdgeInsets.all(8.0),
