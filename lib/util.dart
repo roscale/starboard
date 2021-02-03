@@ -1,5 +1,8 @@
 import 'package:draw/draw.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:html_unescape/html_unescape_small.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 String formatBigNumber(int n) {
   var abs = n.abs();
@@ -47,5 +50,22 @@ Widget inkwellOverWidget({@required Widget widget, @required Function onTap}) {
         ),
       )
     ],
+  );
+}
+
+Widget markdownRedditText(String text) {
+  return MarkdownBody(
+    inlineSyntaxes: [],
+    data: HtmlUnescape().convert(text),
+    onTapLink: (_text, href, _title) => launch(href),
+    styleSheet: MarkdownStyleSheet(
+      a: TextStyle(decoration: TextDecoration.underline),
+      blockquoteDecoration: BoxDecoration(
+        border: Border(
+          left: BorderSide(color: Colors.blue, width: 2),
+        ),
+      ),
+      blockquotePadding: EdgeInsets.only(left: 10, top: 2, bottom: 2),
+    ),
   );
 }

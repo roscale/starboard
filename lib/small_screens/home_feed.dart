@@ -7,6 +7,7 @@ import 'package:share/share.dart';
 import 'package:starboard/app_models/app_model.dart';
 import 'package:starboard/app_models/home_feed.dart';
 import 'package:starboard/small_screens/image_viewer.dart';
+import 'package:starboard/small_screens/subreddit_search_bar.dart';
 import 'package:starboard/util.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -35,7 +36,11 @@ class _HomeFeedState extends State<HomeFeed> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Starboard'),
+        leading: IconButton(
+          icon: Icon(Icons.account_circle),
+          onPressed: () {},
+        ),
+        title: SubredditSearchBar(),
         centerTitle: true,
         actions: [
           // Logout button.
@@ -143,7 +148,9 @@ class _HomeFeedState extends State<HomeFeed> {
             }
 
             var isLink = !post.isRedditMediaDomain;
-            var isImage = (post.isRedditMediaDomain || post.domain == "i.imgur.com") && !post.isVideo;
+            var isImage =
+                (post.isRedditMediaDomain || post.domain == "i.imgur.com") &&
+                    !post.isVideo;
             var isVideo = post.isVideo;
 
             String thumbnail;

@@ -136,12 +136,15 @@ class _PostState extends State<Post> {
               }
               return Padding(
                 padding: EdgeInsets.all(15.0),
-                child: Text(post.selftext),
+                child: markdownRedditText(post.selftext),
               );
             }
 
-            var isLink = !post.isRedditMediaDomain && post.domain != "i.imgur.com";
-            var isImage = (post.isRedditMediaDomain || post.domain == "i.imgur.com") && !post.isVideo;
+            var isLink =
+                !post.isRedditMediaDomain && post.domain != "i.imgur.com";
+            var isImage =
+                (post.isRedditMediaDomain || post.domain == "i.imgur.com") &&
+                    !post.isVideo;
             var isVideo = post.isVideo;
 
             var widget = Stack(
@@ -310,7 +313,8 @@ class _PostState extends State<Post> {
           InkWell(
             onTap: () {
               Share.share(
-                  shortLink(context.read<AppModel>().reddit, post).toString());
+                shortLink(context.read<AppModel>().reddit, post).toString(),
+              );
             },
             child: Padding(
               padding: const EdgeInsets.all(8.0),
@@ -354,6 +358,8 @@ class _PostState extends State<Post> {
         ],
       );
     } else if (c is Comment) {
+      // c.reddit.subreddit("u_${c.author}").populate().then((value) => print(value.iconImage));
+
       return Padding(
         padding: const EdgeInsets.only(left: 15, top: 15),
         child: Column(
@@ -382,7 +388,7 @@ class _PostState extends State<Post> {
             Padding(
               // Avoid scrollbar covering the text
               padding: const EdgeInsets.only(right: 10),
-              child: Text(c.body),
+              child: markdownRedditText(c.body),
             ),
             Padding(padding: EdgeInsets.only(top: 5)),
             _buildCommentActionButtons(c),
