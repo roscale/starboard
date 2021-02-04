@@ -1,10 +1,13 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:draw/draw.dart';
 import 'package:flutter/material.dart';
+import 'package:html_unescape/html_unescape_small.dart';
 import 'package:provider/provider.dart';
 import 'package:share/share.dart';
 import 'package:starboard/app_models/app_model.dart';
+import 'package:starboard/app_models/posts.dart';
 import 'package:starboard/small_screens/image_viewer.dart';
+import 'package:starboard/small_screens/score.dart';
 import 'package:starboard/util.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -122,7 +125,7 @@ class _PostState extends State<Post> {
               _buildHeader(post),
               Divider(),
               Text(
-                post.title,
+                HtmlUnescape().convert(post.title),
                 style: TextStyle(fontSize: 20),
               ),
             ],
@@ -249,49 +252,9 @@ class _PostState extends State<Post> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.keyboard_arrow_up),
-                iconSize: 26,
-                color: post.vote == VoteState.upvoted
-                    ? Colors.deepOrange
-                    : Colors.grey,
-                splashColor: Colors.deepOrange,
-                padding: EdgeInsets.all(0),
-                constraints: BoxConstraints(),
-                splashRadius: 15,
-                onPressed: () async {
-                  if (post.vote == VoteState.upvoted) {
-                    await post.clearVote();
-                  } else {
-                    await post.upvote();
-                  }
-                },
-              ),
-              Text(
-                formatBigNumber(post.score),
-                style: TextStyle(fontSize: 13, color: Colors.grey),
-              ),
-              IconButton(
-                icon: Icon(Icons.keyboard_arrow_down),
-                iconSize: 26,
-                color: post.vote == VoteState.downvoted
-                    ? Colors.blue
-                    : Colors.grey,
-                splashColor: Colors.blue,
-                padding: EdgeInsets.all(0),
-                constraints: BoxConstraints(),
-                splashRadius: 15,
-                onPressed: () async {
-                  if (post.vote == VoteState.downvoted) {
-                    await post.clearVote();
-                  } else {
-                    await post.downvote();
-                  }
-                },
-              ),
-            ],
+          ChangeNotifierProvider.value(
+            value: context.read<PostsLocalState>().getOrCreate(post.id),
+            builder: (_, __) => Score(post),
           ),
           Padding(
             padding: const EdgeInsets.all(8.0),

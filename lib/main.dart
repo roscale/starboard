@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:starboard/app_models/app_model.dart';
 import 'package:starboard/app_models/home_feed.dart';
+import 'package:starboard/app_models/posts.dart';
 import 'package:starboard/small_screens/home_feed.dart';
 import 'package:starboard/small_screens/login.dart';
 import 'package:starboard/small_screens/post.dart';
@@ -13,8 +14,11 @@ void main() {
 class App extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Provider(
-      create: (_) => AppModel(),
+    return MultiProvider(
+      providers: [
+        Provider(create: (_) => AppModel()),
+        Provider(create: (_) => PostsLocalState()),
+      ],
       builder: (context, _) => MaterialApp(
         title: 'Starboard',
         theme: ThemeData(

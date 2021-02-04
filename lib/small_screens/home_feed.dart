@@ -1,12 +1,14 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:draw/draw.dart';
 import 'package:flutter/material.dart';
-import 'package:fluttertoast/fluttertoast.dart';
+import 'package:html_unescape/html_unescape_small.dart';
 import 'package:provider/provider.dart';
 import 'package:share/share.dart';
 import 'package:starboard/app_models/app_model.dart';
 import 'package:starboard/app_models/home_feed.dart';
+import 'package:starboard/app_models/posts.dart';
 import 'package:starboard/small_screens/image_viewer.dart';
+import 'package:starboard/small_screens/score.dart';
 import 'package:starboard/small_screens/subreddit_search_bar.dart';
 import 'package:starboard/util.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -92,7 +94,10 @@ class _HomeFeedState extends State<HomeFeed> {
   Widget _buildPost(Submission post) {
     return InkWell(
       onTap: () {
-        Navigator.of(context).pushNamed('/comments', arguments: post);
+        context.read<PostsLocalState>().getOrCreate(post.id).visit();
+        // TODO: how to mark as visited?
+        // post.markRead();
+        return Navigator.of(context).pushNamed('/comments', arguments: post);
       },
       child: Padding(
         padding: const EdgeInsets.only(left: 12.0, right: 12.0, top: 8.0),
@@ -132,11 +137,24 @@ class _HomeFeedState extends State<HomeFeed> {
               width: !post.isSelf
                   ? MediaQuery.of(context).size.width - 120
                   : MediaQuery.of(context).size.width - 30,
-              child: Text(
-                post.title,
-                style: TextStyle(
-                  fontSize: 14,
-                ),
+              child: ChangeNotifierProvider.value(
+                value: context.read<PostsLocalState>().getOrCreate(post.id),
+                builder: (context, __) {
+                  var localState = context.watch<PostLocalState>();
+                  var visited;
+                  if (localState.visited != null) {
+                    visited = localState.visited;
+                  } else {
+                    visited = post.visited;
+                  }
+
+                  return Text(
+                    HtmlUnescape().convert(post.title),
+                    style: TextStyle(
+                        fontSize: 14,
+                        color: visited ? Colors.grey : Colors.white),
+                  );
+                },
               ),
             ),
           ],
@@ -265,40 +283,15 @@ class _HomeFeedState extends State<HomeFeed> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              IconButton(
-                icon: Icon(Icons.keyboard_arrow_up),
-                iconSize: 26,
-                color: Colors.grey,
-                splashColor: Colors.deepOrange,
-                padding: EdgeInsets.all(0),
-                constraints: BoxConstraints(),
-                splashRadius: 15,
-                onPressed: () {
-                  Fluttertoast.showToast(msg: "Unimplemented");
-                },
-              ),
-              Text(
-                formatBigNumber(post.score),
-                style: TextStyle(fontSize: 13, color: Colors.grey),
-              ),
-              IconButton(
-                icon: Icon(Icons.keyboard_arrow_down),
-                iconSize: 26,
-                color: Colors.grey,
-                splashColor: Colors.blue,
-                padding: EdgeInsets.all(0),
-                constraints: BoxConstraints(),
-                splashRadius: 15,
-                onPressed: () {
-                  Fluttertoast.showToast(msg: "Unimplemented");
-                },
-              ),
-            ],
+          ChangeNotifierProvider.value(
+            value: context.read<PostsLocalState>().getOrCreate(post.id),
+            builder: (_, __) => Score(post),
           ),
           InkWell(
             onTap: () {
+              context.read<PostsLocalState>().getOrCreate(post.id).visit();
+              // TODO: how to mark as visited?
+              // post.markRead();
               Navigator.of(context).pushNamed('/comments', arguments: post);
             },
             child: Padding(
