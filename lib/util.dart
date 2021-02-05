@@ -55,7 +55,6 @@ Widget inkwellOverWidget({@required Widget widget, @required Function onTap}) {
 
 Widget markdownRedditText(String text) {
   return MarkdownBody(
-    inlineSyntaxes: [],
     data: HtmlUnescape().convert(text),
     onTapLink: (_text, href, _title) => launch(href),
     styleSheet: MarkdownStyleSheet(

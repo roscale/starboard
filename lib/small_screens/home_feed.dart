@@ -93,6 +93,7 @@ class _HomeFeedState extends State<HomeFeed> {
 
   Widget _buildPost(Submission post) {
     return InkWell(
+      splashColor: Color(0x552196F3),
       onTap: () {
         context.read<PostsLocalState>().getOrCreate(post.id).visit();
         // TODO: how to mark as visited?

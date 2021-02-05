@@ -7,16 +7,12 @@ import 'package:share/share.dart';
 import 'package:starboard/app_models/app_model.dart';
 import 'package:starboard/app_models/posts.dart';
 import 'package:starboard/small_screens/image_viewer.dart';
+import 'package:starboard/small_screens/reddit_video_player.dart';
 import 'package:starboard/small_screens/score.dart';
 import 'package:starboard/util.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class LinearComment {
-  int indentation;
-  dynamic comment;
-
-  LinearComment(this.indentation, this.comment);
-}
+import 'comment.dart';
 
 class Post extends StatefulWidget {
   @override
@@ -26,6 +22,7 @@ class Post extends StatefulWidget {
 class _PostState extends State<Post> {
   Submission post;
   Future commentsRefreshed;
+  GlobalKey headerKey = GlobalKey();
 
   var _scrollController = ScrollController();
 
@@ -59,7 +56,7 @@ class _PostState extends State<Post> {
             if (!snapshot.hasData) {
               return ListView(
                 children: [
-                  _buildTopSection(post),
+                  Header(key: headerKey, post: post),
                   Center(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 50.0),
@@ -73,7 +70,7 @@ class _PostState extends State<Post> {
             if (post.comments.length == 0) {
               return ListView(
                 children: [
-                  _buildTopSection(post),
+                  Header(key: headerKey, post: post),
                   Center(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 50.0),
@@ -89,7 +86,7 @@ class _PostState extends State<Post> {
             }
 
             var linearComments = <LinearComment>[];
-            _linearizeComments(post.comments, linearComments);
+            MyComment.linearizeComments(post.comments, linearComments);
 
             return Scrollbar(
               controller: _scrollController,
@@ -98,11 +95,11 @@ class _PostState extends State<Post> {
                 itemCount: 1 + linearComments.length,
                 itemBuilder: (context, index) {
                   if (index == 0) {
-                    return _buildTopSection(post);
+                    return Header(key: headerKey, post: post);
                   }
                   var comment =
-                      _buildComment(linearComments[index - 1].comment);
-                  return _indentComment(
+                      MyComment(post, linearComments[index - 1].comment);
+                  return MyComment.indentComment(
                       comment, linearComments[index - 1].indentation);
                 },
               ),
@@ -112,8 +109,27 @@ class _PostState extends State<Post> {
       ),
     );
   }
+}
 
-  Widget _buildTopSection(Submission post) {
+class Header extends StatefulWidget {
+  final Submission post;
+
+  const Header({Key key, this.post}) : super(key: key);
+
+  @override
+  _HeaderState createState() => _HeaderState();
+}
+
+class _HeaderState extends State<Header> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+
+    var post = widget.post;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -122,7 +138,7 @@ class _PostState extends State<Post> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildHeader(post),
+              _buildSource(post),
               Divider(),
               Text(
                 HtmlUnescape().convert(post.title),
@@ -150,45 +166,69 @@ class _PostState extends State<Post> {
                     !post.isVideo;
             var isVideo = post.isVideo;
 
-            var widget = Stack(
-              alignment: AlignmentDirectional.bottomCenter,
-              children: [
-                if (post.preview.isNotEmpty)
-                  Hero(
-                    tag: post.preview.first.source.url.toString(),
-                    child: AspectRatio(
-                      aspectRatio: post.preview.first.source.width /
-                          post.preview.first.source.height,
-                      child: CachedNetworkImage(
-                        imageUrl: post.preview.first.source.url.toString(),
-                        placeholder: (_context, _) =>
-                            Center(child: CircularProgressIndicator()),
+            var widget;
+            if (!isVideo) {
+              widget = Stack(
+                alignment: AlignmentDirectional.bottomCenter,
+                children: [
+                  if (post.preview.isNotEmpty)
+                    Hero(
+                      tag: post.preview.first.source.url.toString(),
+                      child: AspectRatio(
+                        aspectRatio: post.preview.first.source.width /
+                            post.preview.first.source.height,
+                        child: CachedNetworkImage(
+                          imageUrl: post.preview.first.source.url.toString(),
+                          progressIndicatorBuilder: (_, __, progress) {
+                            if (progress.progress == null) {
+                              return Container();
+                            }
+                            return Center(
+                              child: CircularProgressIndicator(
+                                value: progress.progress,
+                              ),
+                            );
+                          },
+                        ),
                       ),
                     ),
-                  ),
-                if (isLink)
-                  Container(
-                    width: double.infinity,
-                    color: Colors.black54,
-                    child: Padding(
-                      padding: const EdgeInsets.all(18.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            post.domain,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                                fontSize: 13, fontWeight: FontWeight.bold),
-                          ),
-                          Icon(Icons.open_in_new, size: 20)
-                        ],
+                  if (isLink)
+                    Container(
+                      width: double.infinity,
+                      color: Colors.black54,
+                      child: Padding(
+                        padding: const EdgeInsets.all(18.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              post.domain,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  fontSize: 13, fontWeight: FontWeight.bold),
+                            ),
+                            Icon(Icons.open_in_new, size: 20)
+                          ],
+                        ),
                       ),
-                    ),
-                  )
-              ],
-            );
+                    )
+                ],
+              );
+            } else {
+              var url = post.data["secure_media"]["reddit_video"]
+                      ["fallback_url"]
+                  .toString();
+              var width =
+                  post.data["secure_media"]["reddit_video"]["width"] as int;
+              var height =
+                  post.data["secure_media"]["reddit_video"]["height"] as int;
+
+              print("Video URL $url");
+              widget =
+                  RedditVideoPlayer(url: url, width: width, height: height);
+              return widget;
+            }
 
             return inkwellOverWidget(
               widget: widget,
@@ -209,7 +249,7 @@ class _PostState extends State<Post> {
     );
   }
 
-  Widget _buildHeader(Submission post) {
+  Widget _buildSource(Submission post) {
     print("post.isSelf: ${post.isSelf}");
     print("post.isVideo: ${post.isVideo}");
     print("post.variants: ${post.variants}");
@@ -300,152 +340,5 @@ class _PostState extends State<Post> {
         ],
       ),
     );
-  }
-
-  void _linearizeComments(CommentForest commentForest, List<LinearComment> dest,
-      {level = 0}) {
-    for (var c in commentForest.comments) {
-      dest.add(LinearComment(level, c));
-      if (c is Comment && c.replies != null) {
-        _linearizeComments(c.replies, dest, level: level + 1);
-      }
-    }
-  }
-
-  Widget _buildComment(dynamic c) {
-    if (c is MoreComments) {
-      return Row(
-        children: [
-          Padding(padding: EdgeInsets.only(left: 5)),
-          TextButton(child: Text("${c.count} more replies"), onPressed: () {}),
-        ],
-      );
-    } else if (c is Comment) {
-      // c.reddit.subreddit("u_${c.author}").populate().then((value) => print(value.iconImage));
-
-      return Padding(
-        padding: const EdgeInsets.only(left: 15, top: 15),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              Icon(
-                Icons.account_circle,
-                color: Colors.orange,
-              ),
-              Padding(padding: EdgeInsets.only(left: 5)),
-              Text(
-                c.author,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                  color: c.author == post.author ? Colors.blue : Colors.white,
-                ),
-              ),
-              Text(
-                " • ${formatDuration(DateTime.now().difference(c.createdUtc))}",
-                style: TextStyle(color: Colors.grey),
-              )
-            ]),
-            Padding(padding: EdgeInsets.only(top: 5)),
-            Padding(
-              // Avoid scrollbar covering the text
-              padding: const EdgeInsets.only(right: 10),
-              child: markdownRedditText(c.body),
-            ),
-            Padding(padding: EdgeInsets.only(top: 5)),
-            _buildCommentActionButtons(c),
-          ],
-        ),
-      );
-    }
-    assert(false, "Should never get here");
-  }
-
-  Widget _buildCommentActionButtons(Comment c) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        IconButton(
-          icon: Icon(Icons.reply),
-          color: Colors.grey,
-          padding: EdgeInsets.all(4),
-          constraints: BoxConstraints(),
-          iconSize: 20,
-          splashRadius: 15,
-          onPressed: () {},
-        ),
-        Padding(padding: EdgeInsets.only(left: 20)),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            Row(
-              children: [
-                IconButton(
-                  icon: Icon(Icons.keyboard_arrow_up),
-                  iconSize: 26,
-                  color: c.vote == VoteState.upvoted
-                      ? Colors.deepOrange
-                      : Colors.grey,
-                  splashColor: Colors.deepOrange,
-                  padding: EdgeInsets.all(0),
-                  constraints: BoxConstraints(),
-                  splashRadius: 15,
-                  onPressed: () async {
-                    if (c.vote == VoteState.upvoted) {
-                      await c.clearVote();
-                    } else {
-                      await c.upvote();
-                    }
-                  },
-                ),
-                Text(
-                  formatBigNumber(c.score),
-                  style: TextStyle(fontSize: 13, color: Colors.grey),
-                ),
-                IconButton(
-                  icon: Icon(Icons.keyboard_arrow_down),
-                  iconSize: 26,
-                  color:
-                      c.vote == VoteState.downvoted ? Colors.blue : Colors.grey,
-                  splashColor: Colors.blue,
-                  padding: EdgeInsets.all(0),
-                  constraints: BoxConstraints(),
-                  splashRadius: 15,
-                  onPressed: () async {
-                    if (c.vote == VoteState.downvoted) {
-                      await c.clearVote();
-                    } else {
-                      await c.downvote();
-                    }
-                  },
-                ),
-              ],
-            ),
-          ],
-        ),
-        Padding(padding: EdgeInsets.only(right: 8))
-      ],
-    );
-  }
-
-  Widget _indentComment(Widget comment, int indentation) {
-    for (var i = 0; i < indentation; i++) {
-      comment = Padding(
-        padding: EdgeInsets.only(left: 15),
-        child: Container(
-          decoration: BoxDecoration(
-            border: Border(
-              left: BorderSide(
-                color: Colors.grey.shade800,
-                width: 1.5,
-              ),
-            ),
-          ),
-          child: comment,
-        ),
-      );
-    }
-    return comment;
   }
 }

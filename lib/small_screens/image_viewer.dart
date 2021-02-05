@@ -38,8 +38,16 @@ class ImageViewer extends StatelessWidget {
             tag: url,
             child: CachedNetworkImage(
               imageUrl: url,
-              placeholder: (_context, _) =>
-                  Center(child: CircularProgressIndicator()),
+              progressIndicatorBuilder: (_, __, progress) {
+                if (progress.progress == null) {
+                  return Container();
+                }
+                return Center(
+                  child: CircularProgressIndicator(
+                    value: progress.progress,
+                  ),
+                );
+              },
             ),
           ),
         ),
