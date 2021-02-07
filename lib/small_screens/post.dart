@@ -225,18 +225,26 @@ class _HeaderState extends State<Header> with AutomaticKeepAliveClientMixin {
                   post.data["secure_media"]["reddit_video"]["height"] as int;
 
               print("Video URL $url");
-              widget =
-                  RedditVideoPlayer(url: url, width: width, height: height);
-              return widget;
+              return RedditVideoPlayer(
+                url: url,
+                post: post,
+                width: width,
+                height: height,
+              );
             }
 
             return inkwellOverWidget(
               widget: widget,
               onTap: () {
                 if (isImage) {
-                  Navigator.of(context).push(MaterialPageRoute(
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
                       builder: (_) => ImageViewer(
-                          post, post.preview.first.source.url.toString())));
+                        post,
+                        post.preview.first.source.url.toString(),
+                      ),
+                    ),
+                  );
                 } else if (isLink) {
                   launch(post.url.toString());
                 }

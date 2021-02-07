@@ -7,6 +7,7 @@ import 'package:share/share.dart';
 import 'package:starboard/app_models/app_model.dart';
 import 'package:starboard/app_models/home_feed.dart';
 import 'package:starboard/app_models/posts.dart';
+import 'package:starboard/small_screens/reddit_video_player.dart';
 import 'package:starboard/small_screens/image_viewer.dart';
 import 'package:starboard/small_screens/score.dart';
 import 'package:starboard/small_screens/subreddit_search_bar.dart';
@@ -38,6 +39,7 @@ class _HomeFeedState extends State<HomeFeed> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        titleSpacing: 0,
         leading: IconButton(
           icon: Icon(Icons.account_circle),
           onPressed: () {},
@@ -210,7 +212,9 @@ class _HomeFeedState extends State<HomeFeed> {
                         Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (_) => ImageViewer(
-                                post, post.preview.first.source.url.toString()),
+                              post,
+                              post.preview.first.source.url.toString(),
+                            ),
                           ),
                         );
                       });
@@ -263,7 +267,27 @@ class _HomeFeedState extends State<HomeFeed> {
                   return inkwellOverWidget(
                     widget: thumbnailWidget,
                     onTap: () {
-                      launch(post.url.toString());
+                      var url = post.data["secure_media"]["reddit_video"]
+                              ["fallback_url"]
+                          .toString();
+                      var width = post.data["secure_media"]["reddit_video"]
+                          ["width"] as int;
+                      var height = post.data["secure_media"]["reddit_video"]
+                          ["height"] as int;
+
+                      print("Video URL $url");
+
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => RedditVideoPlayer(
+                            fullscreen: true,
+                            url: url,
+                            width: width,
+                            height: height,
+                            post: post,
+                          ),
+                        ),
+                      );
                     },
                   );
                 } else {

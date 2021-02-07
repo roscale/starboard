@@ -15,6 +15,10 @@ String formatBigNumber(int n) {
   return "${(n ~/ 1000)}k";
 }
 
+String formatVideoDuration(Duration duration) {
+  return "${duration.inMinutes}:${(duration.inSeconds % 60).toString().padLeft(2, "0")}";
+}
+
 // Work around library bug
 // https://github.com/draw-dev/DRAW/pull/173
 Uri shortLink(Reddit reddit, Submission post) {
